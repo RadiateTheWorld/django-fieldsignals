@@ -3,6 +3,7 @@ from copy import deepcopy
 from django.apps import apps
 from django.core.exceptions import AppRegistryNotReady
 from django.db.models.fields.related import ForeignObjectRel
+from django.db.models.fields.files import ImageFieldFile
 from django.db.models import signals as _signals
 from django.dispatch import Signal
 
@@ -30,8 +31,8 @@ class ChangedSignal(Signal):
             # We require access to Model._meta.get_fields(), which isn't available yet.
             # (This error would be raised below anyway, but we want to add a more meaningful message)
             raise AppRegistryNotReady(
-                "django-fieldsignals signals must be connected after the app cache is ready. "
-                "Connect the signal in your AppConfig.ready() handler."
+                "django-fieldsignals signals must be connected after the app cache is"
+                " ready. Connect the signal in your AppConfig.ready() handler."
             )
 
         # Validate arguments
@@ -146,10 +147,14 @@ class ChangedSignal(Signal):
             new_value = field.to_python(field.value_from_object(instance))
             old_value = originals.get(field.name, None)
             if old_value != new_value:
-                if not isinstance(new_value, IMMUTABLE_TYPES_WHITELIST):
+                if not isinstance(
+                    new_value, IMMUTABLE_TYPES_WHITELIST + (ImageFieldFile,)
+                ):
                     # For mutable types, make a copy of the value before storing it.
                     # Otherwise, the 'originals' dict may well get modified elsewhere, and
                     # that's going to make change detection impossible
+                    #
+                    # Exclude ImageFieldFiles due to https://code.djangoproject.com/ticket/21238
                     new_value = deepcopy(new_value)
 
                 changed_fields[field.name] = (old_value, new_value)
